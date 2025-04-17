@@ -33,3 +33,16 @@ class LeNet5(nn.Module):
         x = torch.flatten(x, 1)
         logit = self.classifier(x)
         return logit
+    
+    def save_model(self, filepath: str) -> None:
+        """
+        Save a PyTorch model's state_dict and config
+
+        Args:
+            model: the NeuralNet instance
+            filepath: the file to save to
+        """
+        torch.save({
+            'model_state_dict': self.state_dict(),
+        }, filepath)
+        print(f"Model saved to {filepath}")
