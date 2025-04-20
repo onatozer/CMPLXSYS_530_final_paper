@@ -4,7 +4,7 @@ import torch.nn.functional as F
 
 class LeNet5(nn.Module):
     
-    def __init__(self, num_classes = 10):
+    def __init__(self, num_classes = 10, reduction_factor = 1):
         
         super().__init__()
         
@@ -20,11 +20,11 @@ class LeNet5(nn.Module):
         )
         
         self.classifier = nn.Sequential(
-            nn.Linear(256, 120),
+            nn.Linear(256, int(120/reduction_factor)),
             nn.Tanh(),
-            nn.Linear(120, 84),
+            nn.Linear(int(120/reduction_factor), int(84/reduction_factor)),
             nn.Tanh(),
-            nn.Linear(84, num_classes)  
+            nn.Linear(int(84/reduction_factor), num_classes)  
         )
         
         

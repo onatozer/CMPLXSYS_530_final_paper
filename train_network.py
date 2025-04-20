@@ -3,7 +3,6 @@ from torch import nn
 from network import LeNet5
 from torch.utils.data import DataLoader
 from dataset import MnistDataloader
-from visualize_network import graph_model
 
 def train_model(model: nn.Module):
     mnist_loader = MnistDataloader('train-images.idx3-ubyte', 'train-labels.idx1-ubyte',
@@ -42,6 +41,10 @@ def train_model(model: nn.Module):
 
 
 if __name__ == "__main__":
-   model = LeNet5
+    model = LeNet5(reduction_factor=16)
 
-   train_model(model)
+    train_model(model)
+
+    model = LeNet5()
+
+    train_model(model)
