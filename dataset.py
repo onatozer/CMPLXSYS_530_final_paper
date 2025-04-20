@@ -3,12 +3,22 @@ from torch.utils.data import Dataset, DataLoader
 import struct
 from array import array
 import numpy as np
+from network import LeNet5
 
 
 class MNISTDataset(Dataset):
-    def __init__(self, images, labels, transform=None):
-        self.images = torch.tensor(images, dtype=torch.float32).unsqueeze(1) / 255.0  # [N, 1, 28, 28]
-        self.labels = torch.tensor(labels, dtype=torch.long)
+    def __init__(self, images, labels, transform=None, include_only: list[int] = None):
+        images = torch.tensor(images, dtype=torch.float32).unsqueeze(1) / 255.0  # [N, 1, 28, 28]
+        labels = torch.tensor(labels, dtype=torch.long)
+
+        if include_only is not None:
+            include_only_tensor = torch.tensor(include_only, dtype=torch.long)
+            mask = torch.isin(labels, include_only_tensor)
+            images = images[mask]
+            labels = labels[mask]
+
+        self.images = images
+        self.labels = labels
         self.transform = transform
 
     def __len__(self):
@@ -51,21 +61,44 @@ class MnistDataloader:
 
         return images, labels
 
-    def load_dataset(self):
+    def load_dataset(self, include_only: list[int] = None):
         x_train, y_train = self.read_images_labels(self.training_images_filepath, self.training_labels_filepath)
         x_test, y_test = self.read_images_labels(self.test_images_filepath, self.test_labels_filepath)
 
-        train_dataset = MNISTDataset(x_train, y_train)
-        test_dataset = MNISTDataset(x_test, y_test)
+       
+        train_dataset = MNISTDataset(x_train, y_train, include_only=include_only)
+        test_dataset = MNISTDataset(x_test, y_test, include_only=include_only)
+
         return train_dataset, test_dataset
-
-
+    
 if __name__ == "__main__":
     mnist_loader = MnistDataloader('train-images.idx3-ubyte', 'train-labels.idx1-ubyte',
                                     't10k-images.idx3-ubyte', 't10k-labels.idx1-ubyte')
     train_dataset, test_dataset = mnist_loader.load_dataset()
 
-    train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
-    test_loader = DataLoader(test_dataset, batch_size=64)
+    x,y = mnist_loader.load_dataset([1])
+
+    train_loader = DataLoader(x, batch_size=64, shuffle=True)
+    # test_loader = DataLoader(test_dataset, batch_size=64)
+    model = LeNet5()
+    optimizer = torch.optim.AdamW(model.parameters(), lr=0.01, weight_decay=1e-4)
+
+    for input, label in train_loader:
+        # criterion = ()
+        # print(input.shape)
+        # print(label.shape)
+
+        model.train()
+
+        pred = model(input)
+
+        optimizer.zero_grad()
+
+        loss = torch.nn.functional.cross_entropy(pred, label)
+
+        # train_loss += loss.item()
+        loss.backward()
+
+        optimizer.step()
 
     
