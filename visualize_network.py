@@ -4,10 +4,13 @@ import networkx as nx
 import matplotlib.pyplot as plt
 import torch.nn as nn
 from network import LeNet5
-from pyvis_visualize import draw_interactive_graph
 from torch.utils.data import Dataset, DataLoader
 from collections import defaultdict
 from dataset import MnistDataloader
+import infomap
+from networkx.algorithms.community import greedy_modularity_communities
+from cdlib import algorithms
+
 
 class Neural_Net_Graph():
     def __init__(self, model):
@@ -36,7 +39,7 @@ class Neural_Net_Graph():
     #TODO: Change this func if you want to change the node names :-)
     def add_layer_nodes(self, num_nodes, role):
         nodes = [f"L{self.layer_counter}_N{i}" for i in range(num_nodes)]
-        print(f"Adding nodes {nodes}")
+        # print(f"Adding nodes {nodes}")
         for n in nodes:
             self.G.add_node(n, layer=f"Layer {self.layer_counter}", role=role, layer_index=self.layer_counter)
         # self.layers.append(nodes)
@@ -51,9 +54,9 @@ class Neural_Net_Graph():
             else:
                 yield layer
 
-    def build_graph(self, weights = "basic"):
+    def build_graph(self, weights = "basic", threshold = 0):
         for layer in self.iterate_layers(self.model):
-            print(f"On layer {layer}")
+            # print(f"On layer {layer}")
             if isinstance(layer, nn.Conv2d):
                 if not self.added_input_layer:
                     in_channels = layer.in_channels
@@ -83,6 +86,7 @@ class Neural_Net_Graph():
 
                 # else:
                 # print(f"From {prev_nodes}. To {curr_nodes}")
+
                 self.add_edges(self.prev_nodes, curr_nodes)
                 self.prev_nodes = curr_nodes
                 self.prev_conv_layer = layer
@@ -117,6 +121,8 @@ class Neural_Net_Graph():
                 is_final = layer == list(self.iterate_layers(model))[-1]
                 role = 'output' if is_final else 'hidden'
                 curr_nodes = self.add_layer_nodes(out_features, role=role)
+
+                # print(weight_matrix)
 
                 self.add_edges(self.prev_nodes, curr_nodes, weights=weight_matrix)
                 self.prev_nodes = curr_nodes
@@ -169,8 +175,6 @@ class Neural_Net_Graph():
         pos = self.custom_layered_layout(v_spacing=v_spacing, h_spacing=h_spacing)
 
 
-        node_size_frac = node_size_frac
-
         # Compute edge widths from weights
         edge_weights = [abs(self.G[u][v]['weight']) for u, v in self.G.edges()]
         max_weight = max(edge_weights) if edge_weights else 1.0
@@ -188,13 +192,41 @@ class Neural_Net_Graph():
             arrows=True,connectionstyle="arc3,rad=0.1"
         )
 
-        # Optional: Label edges with weight values
-        # edge_labels = { (u, v): f"{G[u][v]['weight']:.2f}" for u, v in G.edges() }
-        # nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels, font_size=7, label_pos=0.5)
+        plt.savefig(pathname)
+
+    def draw_graph_page_rank(self, pathname = "Graph", v_spacing=1.5, h_spacing=3.0, node_size_frac = 1):
+        # Assign color based on role
+        role_colors = {'input': 'lightgreen', 'hidden': 'lightblue', 'output': 'salmon'}
+        node_colors = [role_colors[self.G.nodes[n]['role']] for n in self.G.nodes()]
+
+        # Get layout based on layer index
+        pos = self.custom_layered_layout(v_spacing=v_spacing, h_spacing=h_spacing)
+
+        # Compute edge widths from weights
+        edge_weights = [abs(self.G[u][v]['weight']) for u, v in self.G.edges()]
+        max_weight = max(edge_weights) if edge_weights else 1.0
+
+        edge_widths = [(1 + 4 * (w / max_weight))*node_size_frac for w in edge_weights]
+
+        # Compute PageRank
+        pagerank = nx.pagerank(self.G, alpha=0.85)
+
+        # Set node sizes proportional to PageRank (scaled for visibility)
+        node_sizes = [(1000 * pagerank[node]) * node_size_frac for node in self.G.nodes()]
+
+        nx.draw(
+            self.G, 
+            pos, 
+            with_labels=True, 
+            node_color=node_colors,
+            node_size=node_sizes, 
+            width=edge_widths,
+            font_size=6,  
+            arrows=True,connectionstyle="arc3,rad=0.1"
+        )
 
         plt.savefig(pathname)
 
-    
     def hook(self, module, input, output):
         self.activation_dict[module] = output.detach().cpu()
         # Come back and decide which one you really want
@@ -206,8 +238,8 @@ class Neural_Net_Graph():
             if isinstance(module, (nn.Linear, nn.Conv2d)):
                 module.register_forward_hook(self.hook)
 
-    #TODO: Add different correlation metrics, currently just using Pearson Correlation
-    def compute_co_activation_matrix(self, dataset: Dataset):
+
+    def compute_activations(self, dataset: Dataset):
         dl = DataLoader(dataset=dataset, batch_size= 64)
 
         self.register_hooks()
@@ -216,26 +248,24 @@ class Neural_Net_Graph():
             inputs, _ = batch
             self.model(inputs)
 
+    def reduce_graph(self, threshold= .0015):
+        pagerank = nx.pagerank(self.G, alpha=0.85)
+        # print("Page rank :", pagerank)
 
-        
-
-
-    def build_co_activation_graph(self, dataset: Dataset):
-
-        coactivation_matrix = self.compute_co_activation_matrix(dataset)
-
-        n_neurons = coactivation_matrix.shape[0]
-
-        # Add nodes
-        self.G.add_nodes_from(range(n_neurons))
-
-        # probably wrong
-        threshold = 0.5
-        for i in range(n_neurons):
-            for j in range(i + 1, n_neurons):
-                weight = coactivation_matrix[i, j]
-                if abs(weight) > threshold:
-                    self.G.add_edge(i, j, weight=weight)
+        node_list = list(self.G.nodes)
+        # print(len(node_list))
+        num_removed = 0
+        #TODO: Rewrite this so that it only works on the linear layers and not the convolutional ones
+        for node in node_list:
+            if(node == "L0_N0"):
+                continue
+            if("L7" in node):
+                continue
+            if pagerank[node] < threshold:
+                num_removed += 1
+                self.G.remove_node(node)
+            
+        # print(num_removed)
 
 
 
@@ -245,16 +275,49 @@ if __name__ == "__main__":
     train_dataset, test_dataset = mnist_loader.load_dataset()
 
     plt.figure(figsize=(18, 10))        
-    model = LeNet5(reduction_factor=16)
+    model = LeNet5(reduction_factor=1)
 
     
     LeNetGraph = Neural_Net_Graph(model)
-    LeNetGraph.compute_co_activation_matrix(test_dataset)
-    print(LeNetGraph.activation_dict.keys())
+    LeNetGraph.compute_activations(test_dataset)
+    # print(LeNetGraph.activation_dict.keys())
     LeNetGraph.build_graph(weights="pearson_correlation")
-    
+    # LeNetGraph.build_graph(weights="basic")
+    # LeNetGraph.draw_graph(pathname = "Before.png", node_size_frac= .5)
 
-    LeNetGraph.draw_graph(pathname = "co-activation.png", node_size_frac= .5)
+    LeNetGraph.reduce_graph()
+    communities = list(greedy_modularity_communities(LeNetGraph.G, weight='weight'))
+
+    print(communities)
+
+    # print( LeNetGraph.G.edges(data="wieght"))
+    # print([abs(LeNetGraph.G[u][v]['weight']) for u, v in LeNetGraph.G.edges()])
+
+    communities = algorithms.infomap(LeNetGraph.G)
+
+
+    #Just gonna leave this below for now
+    # Assign a community index to each node
+    # node_colors = {}
+    # for i, comm in enumerate(communities.communities):
+    #     for node in comm:
+    #         node_colors[node] = i
+
+    # # Draw the graph with community colors
+    # colors = [node_colors[node] for node in G.nodes()]
+
+    # plt.figure(figsize=(8, 6))
+    # pos = nx.spring_layout(G, seed=42)
+    # nx.draw(G, pos, node_color=colors, with_labels=True, cmap=plt.cm.Set3)
+
+
+    # print(communities.communities)
+
+
+
+    # LeNetGraph.draw_graph_page_rank(pathname = "page rank v1(2).png", node_size_frac= .5)
+    # LeNetGraph.draw_graph(pathname = "After.png", h_spacing= 4, v_spacing= 8 , node_size_frac= .2)
+
     # draw_interactive_graph(LeNetGraph.G)
 
     # plt.clear()
