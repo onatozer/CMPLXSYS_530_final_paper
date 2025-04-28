@@ -46,3 +46,14 @@ class LeNet5(nn.Module):
             'model_state_dict': self.state_dict(),
         }, filepath)
         print(f"Model saved to {filepath}")
+
+    def load_model(self, filepath: str) -> None:
+        """
+        Load a PyTorch model's state_dict from file.
+
+        Args:
+            filepath: the file to load from
+        """
+        checkpoint = torch.load(filepath, map_location=torch.device('cpu'))
+        self.load_state_dict(checkpoint['model_state_dict'])
+        print(f"Model loaded from {filepath}")

@@ -55,6 +55,7 @@ class Neural_Net_Graph():
                 yield layer
 
     def build_graph(self, weights = "basic", threshold = 0):
+        self.G = nx.DiGraph()
         for layer in self.iterate_layers(self.model):
             # print(f"On layer {layer}")
             if isinstance(layer, nn.Conv2d):
@@ -174,19 +175,18 @@ class Neural_Net_Graph():
         # Get layout based on layer index
         pos = self.custom_layered_layout(v_spacing=v_spacing, h_spacing=h_spacing)
 
-
         # Compute edge widths from weights
         edge_weights = [abs(self.G[u][v]['weight']) for u, v in self.G.edges()]
         max_weight = max(edge_weights) if edge_weights else 1.0
 
-        edge_widths = [(1 + 4 * (w / max_weight))*node_size_frac for w in edge_weights]
+        edge_widths = [((1 + 4 * (w / max_weight))*node_size_frac)/5 for w in edge_weights]
 
         nx.draw(
             self.G, 
             pos, 
             with_labels=True, 
             node_color=node_colors,
-            node_size=1000*node_size_frac, 
+            node_size=500*node_size_frac, 
             width=edge_widths,
             font_size=6,  
             arrows=True,connectionstyle="arc3,rad=0.1"
@@ -212,7 +212,9 @@ class Neural_Net_Graph():
         pagerank = nx.pagerank(self.G, alpha=0.85)
 
         # Set node sizes proportional to PageRank (scaled for visibility)
-        node_sizes = [(1000 * pagerank[node]) * node_size_frac for node in self.G.nodes()]
+        node_sizes = [min((1000 * 10**pagerank[node]) * node_size_frac, 5_000) for node in self.G.nodes()]
+        # node_sizes = [5_000 for node in self.G.nodes()]
+
 
         nx.draw(
             self.G, 
@@ -220,6 +222,37 @@ class Neural_Net_Graph():
             with_labels=True, 
             node_color=node_colors,
             node_size=node_sizes, 
+            width=edge_widths,
+            font_size=6,  
+            arrows=True,connectionstyle="arc3,rad=0.1"
+        )
+
+        plt.savefig(pathname)
+
+    def draw_graph_communities(self,communities, pathname = "Community.png", v_spacing=1.5, h_spacing=3.0, node_size_frac = 1):
+        colors = {}
+        for i, comm in enumerate(communities):
+            for node in comm:
+                colors[node] = i
+
+        # Draw the graph with community colors
+        node_colors = [colors[node] for node in self.G.nodes()]
+
+        # Get layout based on layer index
+        pos = self.custom_layered_layout(v_spacing=v_spacing, h_spacing=h_spacing)
+
+        # Compute edge widths from weights
+        edge_weights = [abs(self.G[u][v]['weight']) for u, v in self.G.edges()]
+        max_weight = max(edge_weights) if edge_weights else 1.0
+
+        edge_widths = [((1 + 4 * (w / max_weight))*node_size_frac)/10 for w in edge_weights]
+
+        nx.draw(
+            self.G, 
+            pos, 
+            with_labels=True, 
+            node_color=node_colors,
+            node_size=1000*node_size_frac, 
             width=edge_widths,
             font_size=6,  
             arrows=True,connectionstyle="arc3,rad=0.1"
@@ -237,7 +270,6 @@ class Neural_Net_Graph():
         for name, module in self.model.named_modules():
             if isinstance(module, (nn.Linear, nn.Conv2d)):
                 module.register_forward_hook(self.hook)
-
 
     def compute_activations(self, dataset: Dataset):
         dl = DataLoader(dataset=dataset, batch_size= 64)
@@ -272,10 +304,11 @@ class Neural_Net_Graph():
 if __name__ == "__main__":
     mnist_loader = MnistDataloader('train-images.idx3-ubyte', 'train-labels.idx1-ubyte',
                                     't10k-images.idx3-ubyte', 't10k-labels.idx1-ubyte')
-    train_dataset, test_dataset = mnist_loader.load_dataset()
+    train_dataset, test_dataset = mnist_loader.load_dataset(include_only=[2])
 
     plt.figure(figsize=(18, 10))        
-    model = LeNet5(reduction_factor=1)
+    model = LeNet5(reduction_factor=16)
+    # model.load_model("./fully_trained_16.pt")
 
     
     LeNetGraph = Neural_Net_Graph(model)
@@ -285,33 +318,29 @@ if __name__ == "__main__":
     # LeNetGraph.build_graph(weights="basic")
     # LeNetGraph.draw_graph(pathname = "Before.png", node_size_frac= .5)
 
-    LeNetGraph.reduce_graph()
+    # LeNetGraph.reduce_graph()
     communities = list(greedy_modularity_communities(LeNetGraph.G, weight='weight'))
 
-    print(communities)
+    LeNetGraph.draw_graph_communities(communities=communities, pathname= "gred_com_two.png", h_spacing= 4, v_spacing= 8)
+
+    # print(communities)
 
     # print( LeNetGraph.G.edges(data="wieght"))
     # print([abs(LeNetGraph.G[u][v]['weight']) for u, v in LeNetGraph.G.edges()])
 
-    communities = algorithms.infomap(LeNetGraph.G)
+    # communities = algorithms.infomap(LeNetGraph.G)
+
+    # LeNetGraph.draw_graph_communities(communities.communities,pathname= "2_communities.png", h_spacing= 4, v_spacing= 8 , node_size_frac= .2)
+    # LeNetGraph.draw_graph(pathname = "2_graph(ft).png", h_spacing= 4, v_spacing= 8, node_size_frac= .5)
+
+    LeNetGraph.draw_graph_page_rank(pathname= "ft_all.png", h_spacing= 4, v_spacing= 8 , node_size_frac= .5)
 
 
-    #Just gonna leave this below for now
-    # Assign a community index to each node
-    # node_colors = {}
-    # for i, comm in enumerate(communities.communities):
-    #     for node in comm:
-    #         node_colors[node] = i
+    # train_dataset, test_dataset = mnist_loader.load_dataset()
+    # LeNetGraph.compute_activations(test_dataset)
+    # LeNetGraph.build_graph(weights="pearson_correlation")
 
-    # # Draw the graph with community colors
-    # colors = [node_colors[node] for node in G.nodes()]
-
-    # plt.figure(figsize=(8, 6))
-    # pos = nx.spring_layout(G, seed=42)
-    # nx.draw(G, pos, node_color=colors, with_labels=True, cmap=plt.cm.Set3)
-
-
-    # print(communities.communities)
+    # LeNetGraph.draw_graph_page_rank(pathname= "ft_everything.png", h_spacing= 4, v_spacing= 8 , node_size_frac= .5)
 
 
 

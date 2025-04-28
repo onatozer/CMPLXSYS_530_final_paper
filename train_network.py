@@ -41,10 +41,12 @@ def train_model(model: nn.Module):
 
 
 if __name__ == "__main__":
-    model = LeNet5(reduction_factor=16)
-
-    train_model(model)
-
     model = LeNet5()
 
     train_model(model)
+
+    model = LeNet5(reduction_factor=16)
+
+    train_model(model)
+    model.save_model("fully_trained_16.pt")
+    
