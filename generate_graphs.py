@@ -8,6 +8,52 @@ from collections import defaultdict
 from dataset import MnistDataloader
 from networkx.algorithms.community import greedy_modularity_communities
 from visualize_network import Neural_Net_Graph
+import re
+
+def throughout_training_visualizations():
+    model_paths = ["model_weights/untrained_8.pt", "model_weights/one_epoch_8.pt", "model_weights/fully_trained_8.pt"]
+
+    for i in range(2):
+        if i == 1:
+            for model_path in model_paths:
+                model = LeNet5(reduction_factor=8)
+                model.load_model(model_path)
+                mnist_loader = MnistDataloader('data/train-images-idx3-ubyte', 'data/train-labels-idx1-ubyte',
+                                                'data/t10k-images-idx3-ubyte', 'data/t10k-labels-idx1-ubyte')
+                train_dataset, test_dataset = mnist_loader.load_dataset()
+
+                # print(test_dataset)
+                plt.figure(figsize=(18, 10))        
+                LeNetGraph = Neural_Net_Graph(model)
+                LeNetGraph.compute_activations(test_dataset)
+                LeNetGraph.build_graph(weights="pearson_correlation")
+
+                match = re.search(r'([^-/]+)\.pt$', model_path)
+                LeNetGraph.draw_graph_page_rank(pathname= f"plots/PR_{match.group(1)}_full_dataset_8.png", h_spacing= 4, v_spacing= 8 , node_size_frac= 10)
+
+                plt.clf()
+
+        else:
+             for model_path in model_paths:
+                model = LeNet5(reduction_factor=8)
+                model.load_model(model_path)
+                mnist_loader = MnistDataloader('data/train-images-idx3-ubyte', 'data/train-labels-idx1-ubyte',
+                                                'data/t10k-images-idx3-ubyte', 'data/t10k-labels-idx1-ubyte')
+                train_dataset, test_dataset = mnist_loader.load_dataset()
+
+                # print(test_dataset)
+                plt.figure(figsize=(18, 10))        
+                LeNetGraph = Neural_Net_Graph(model)
+                LeNetGraph.compute_activations(test_dataset)
+                LeNetGraph.build_graph(weights="pearson_correlation")
+                communities = list(greedy_modularity_communities(LeNetGraph.G, weight='weight'))
+
+
+                match = re.search(r'([^-/]+)\.pt$', model_path)
+                LeNetGraph.draw_graph_communities(pathname= f"plots/com_{match.group(1)}_full_dataset_8.png", communities=communities, h_spacing= 4, v_spacing= 8)
+
+                plt.clf()
+
 
 def pr_visualizations():
     model = LeNet5(reduction_factor=8)
@@ -15,8 +61,8 @@ def pr_visualizations():
 
     #Generate the page rank visualizations for fully trained network
     for i in range(11):
-        mnist_loader = MnistDataloader('train-images.idx3-ubyte', 'train-labels.idx1-ubyte',
-                                        't10k-images.idx3-ubyte', 't10k-labels.idx1-ubyte')
+        mnist_loader = MnistDataloader('data/train-images-idx3-ubyte', 'data/train-labels-idx1-ubyte',
+                                        'data/t10k-images-idx3-ubyte', 'data/t10k-labels-idx1-ubyte')
         train_dataset, test_dataset = mnist_loader.load_dataset(include_only=[i])
 
         # print(test_dataset)
@@ -41,8 +87,8 @@ def even_odd_visualizations():
         model.load_model(model_path)
 
         for i in range(2):
-            mnist_loader = MnistDataloader('train-images.idx3-ubyte', 'train-labels.idx1-ubyte',
-                                            't10k-images.idx3-ubyte', 't10k-labels.idx1-ubyte')
+            mnist_loader = MnistDataloader('data/train-images-idx3-ubyte', 'data/train-labels-idx1-ubyte',
+                                            'data/t10k-images-idx3-ubyte', 'data/t10k-labels-idx1-ubyte')
             include_arr = odd_vals if i == 0 else even_vals
             train_dataset, test_dataset = mnist_loader.load_dataset(include_only=include_arr)
 
@@ -57,7 +103,6 @@ def even_odd_visualizations():
             plt.clf()
 
 
-
-
 if __name__ == "__main__":
-    even_odd_visualizations()
+    throughout_training_visualizations()
+    ...
