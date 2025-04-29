@@ -61,10 +61,9 @@ class MnistDataloader:
 
         return images, labels
 
-    def load_dataset(self, include_only: list[int] = None):
+    def load_dataset(self, include_only: list[int] = None, even_odd: bool = False):
         x_train, y_train = self.read_images_labels(self.training_images_filepath, self.training_labels_filepath)
         x_test, y_test = self.read_images_labels(self.test_images_filepath, self.test_labels_filepath)
-
        
         train_dataset = MNISTDataset(x_train, y_train, include_only=include_only)
         test_dataset = MNISTDataset(x_test, y_test, include_only=include_only)

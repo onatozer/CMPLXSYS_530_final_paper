@@ -7,8 +7,8 @@ from network import LeNet5
 from torch.utils.data import Dataset, DataLoader
 from collections import defaultdict
 from dataset import MnistDataloader
-import infomap
 from networkx.algorithms.community import greedy_modularity_communities
+# import community as community_louvain  
 from cdlib import algorithms
 
 
@@ -119,7 +119,7 @@ class Neural_Net_Graph():
                    
                     weight_matrix = M.T
   
-                is_final = layer == list(self.iterate_layers(model))[-1]
+                is_final = layer == list(self.iterate_layers(self.model))[-1]
                 role = 'output' if is_final else 'hidden'
                 curr_nodes = self.add_layer_nodes(out_features, role=role)
 
@@ -166,7 +166,6 @@ class Neural_Net_Graph():
                 pos[node] = (x, y)
         return pos
 
-    #TODO: Make visualization cleaner for deeper neural networks, also maybe there's way to group neurons together when creating initial graph
     def draw_graph(self, pathname = "Graph", v_spacing=1.5, h_spacing=3.0, node_size_frac = 1):
         # Assign color based on role
         role_colors = {'input': 'lightgreen', 'hidden': 'lightblue', 'output': 'salmon'}
@@ -206,13 +205,13 @@ class Neural_Net_Graph():
         edge_weights = [abs(self.G[u][v]['weight']) for u, v in self.G.edges()]
         max_weight = max(edge_weights) if edge_weights else 1.0
 
-        edge_widths = [(1 + 4 * (w / max_weight))*node_size_frac for w in edge_weights]
+        edge_widths = [(1 + 4 * (w / max_weight))*.25 for w in edge_weights]
 
         # Compute PageRank
         pagerank = nx.pagerank(self.G, alpha=0.85)
 
         # Set node sizes proportional to PageRank (scaled for visibility)
-        node_sizes = [min((1000 * 10**pagerank[node]) * node_size_frac, 5_000) for node in self.G.nodes()]
+        node_sizes = [max(min((1000 * pagerank[node]) * node_size_frac, 5_000), 350) for node in self.G.nodes()]
         # node_sizes = [5_000 for node in self.G.nodes()]
 
 
@@ -304,11 +303,12 @@ class Neural_Net_Graph():
 if __name__ == "__main__":
     mnist_loader = MnistDataloader('train-images.idx3-ubyte', 'train-labels.idx1-ubyte',
                                     't10k-images.idx3-ubyte', 't10k-labels.idx1-ubyte')
-    train_dataset, test_dataset = mnist_loader.load_dataset(include_only=[2])
+    train_dataset, test_dataset = mnist_loader.load_dataset(include_only=[7])
 
+    # print(test_dataset)
     plt.figure(figsize=(18, 10))        
-    model = LeNet5(reduction_factor=16)
-    # model.load_model("./fully_trained_16.pt")
+    model = LeNet5(reduction_factor=8)
+    model.load_model("./fully_trained_8.pt")
 
     
     LeNetGraph = Neural_Net_Graph(model)
@@ -321,7 +321,7 @@ if __name__ == "__main__":
     # LeNetGraph.reduce_graph()
     communities = list(greedy_modularity_communities(LeNetGraph.G, weight='weight'))
 
-    LeNetGraph.draw_graph_communities(communities=communities, pathname= "gred_com_two.png", h_spacing= 4, v_spacing= 8)
+    # LeNetGraph.draw_graph_communities(communities=communities, pathname= "plots/com_fullytrained_8dataset_8.png", h_spacing= 4, v_spacing= 8)
 
     # print(communities)
 
@@ -330,10 +330,10 @@ if __name__ == "__main__":
 
     # communities = algorithms.infomap(LeNetGraph.G)
 
-    # LeNetGraph.draw_graph_communities(communities.communities,pathname= "2_communities.png", h_spacing= 4, v_spacing= 8 , node_size_frac= .2)
+    # LeNetGraph.draw_graph_communities(communities.communities,pathname= "com_untrained_2dataset_8.png", h_spacing= 4, v_spacing= 8)
     # LeNetGraph.draw_graph(pathname = "2_graph(ft).png", h_spacing= 4, v_spacing= 8, node_size_frac= .5)
 
-    LeNetGraph.draw_graph_page_rank(pathname= "ft_all.png", h_spacing= 4, v_spacing= 8 , node_size_frac= .5)
+    LeNetGraph.draw_graph_page_rank(pathname= "plots/PR_fullytrained_7dataset_8.png", h_spacing= 4, v_spacing= 8 , node_size_frac= 10)
 
 
     # train_dataset, test_dataset = mnist_loader.load_dataset()
