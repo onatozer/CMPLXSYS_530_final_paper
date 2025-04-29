@@ -105,4 +105,6 @@ def even_odd_visualizations():
 
 if __name__ == "__main__":
     throughout_training_visualizations()
-    ...
+    pr_visualizations()
+    even_odd_visualizations()
+    
