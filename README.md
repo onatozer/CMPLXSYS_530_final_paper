@@ -10,13 +10,13 @@ pip install -r requirements.txt
 ```
 
 ## Usage
-To reproduce all the plots I made, simply run. This will use the network model weights that I previously saved. 
+To reproduce all the plots I made, simply run: 
 
 ```bash
 python3 generate_graphs.py
 ```
 
-If you want to train your own network run:
+This will use the network model weights that I previously saved. If you want to train your own network run:
 
 ```bash
 python3 train_network.py
